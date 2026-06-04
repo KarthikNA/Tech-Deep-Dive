@@ -56,6 +56,29 @@ The client is the interface through which users interact with the chatbot. It is
 - **Mobile App** — a native iOS or Android app, or a cross-platform app (React Native, Flutter) that integrates the chat UI
 - **Embedded Chat Window** — a chat widget embedded inside another product (e.g. a customer support window, a docs site, or an IDE plugin)
 
+### API Gateway
+The API Gateway is the single entry point for all client requests. It sits between the client and the backend services, handling cross-cutting concerns so the Chat Service does not have to. Key responsibilities include:
+
+- **Authentication & Authorization** — validates identity (JWT, API keys, OAuth tokens) and enforces access control before any request reaches the backend
+- **Rate Limiting** — caps the number of requests per user or IP over a time window to prevent abuse and control LLM cost
+- **DDoS Protection** — detects and drops anomalous traffic spikes before they overwhelm downstream services
+- **Request Filtering** — rejects malformed, oversized, or disallowed requests early in the pipeline
+- **Request Routing** — directs traffic to the appropriate backend service based on path, headers, or version
+- **Load Balancing** — distributes incoming traffic evenly across multiple Chat Service instances to prevent hotspots and improve availability
+- **SSL/TLS Termination** — handles HTTPS at the gateway layer so backend services can communicate over plain HTTP internally, reducing certificate management overhead
+- **Circuit Breaking** — detects failing downstream services and stops forwarding requests to them, preventing cascading failures across the system
+- **Retry Logic** — automatically retries failed requests to the Chat Service or LLM provider with exponential backoff to improve resilience against transient failures
+- **Usage Metering** — tracks request and token consumption per user or tenant, enabling quota enforcement, billing, and cost attribution
+- **IP Allowlist / Blocklist** — permits or denies traffic at the network level based on IP address before it reaches any application logic
+- **Streaming Support** — since LLM responses are streamed token-by-token, the gateway maintains long-lived connections (HTTP/2 server-sent events or WebSocket) and proxies the stream directly to the client without buffering the full response
+
+**Technologies:**
+
+| Type | Options |
+|---|---|
+| Open Source | Kong, NGINX, Traefik, Envoy, Tyk |
+| Managed / Closed Source | AWS API Gateway, Google Apigee, Azure API Management, Cloudflare API Shield |
+
 ---
 
 ## Data Flow
