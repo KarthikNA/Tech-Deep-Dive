@@ -11,6 +11,9 @@ Design a basic chatbot system that accepts user messages, sends them to a Large 
 - Users can send messages and receive responses from an LLM
 - System maintains conversation history for multi-turn context
 - Responses are streamed back in real time
+- Support both self-hosted and external LLM providers
+- Augment responses with relevant context via RAG
+- Filter unsafe or out-of-scope inputs and outputs via Guardrails
 
 ### Non-Functional
 - Low latency first token response
@@ -29,31 +32,42 @@ Design a basic chatbot system that accepts user messages, sends them to a Large 
 
 | Component | Responsibility |
 |---|---|
-| **Client** | Sends user messages, renders streamed responses |
-| **API Gateway** | Auth, rate limiting, routes requests |
-| **Chat Service** | Orchestrates conversation — builds prompt, calls LLM, persists messages |
-| **Session Store (Redis)** | Caches recent conversation context for fast retrieval |
-| **LLM Provider** | Generates responses (OpenAI, Anthropic, etc.) |
-| **Message DB (PostgreSQL)** | Persists full conversation history |
+| **Client** | Sends user messages and renders responses |
+| **API Gateway** | Auth, rate limiting, and routes requests to the Chat Service |
+| **Chat Service** | Central orchestrator — coordinates all components to produce a response |
+| **Cache** | Stores frequently requested responses to reduce redundant LLM calls |
+| **RAG** | Retrieves relevant context chunks to augment the prompt |
+| **Vector DB** | Stores and indexes embeddings for semantic search used by RAG |
+| **Guardrails** | Validates inputs and outputs against safety and policy rules |
+| **Guardrails Model** | ML model that powers the Guardrails safety checks |
+| **Model Router** | Selects the most appropriate LLM based on cost, latency, or task type |
+| **Model Selection Model** | ML model that informs the routing decision |
+| **Self-Hosted LLMs** | Internal LLMs for cost-sensitive or data-privacy-sensitive workloads |
+| **External LLMs** | Third-party providers (OpenAI, Anthropic, etc.) for general-purpose tasks |
 
 ---
 
 ## Data Flow
 
 1. User sends a message from the client
-2. API Gateway authenticates and forwards to the Chat Service
-3. Chat Service fetches recent conversation history from Redis
-4. Chat Service builds a prompt (system prompt + history + new message)
-5. Prompt is sent to the LLM Provider; response is streamed back
-6. Chat Service streams tokens to the client via WebSocket
-7. Once complete, full message pair is persisted to PostgreSQL
-8. Redis session is updated with the latest context window
+2. API Gateway authenticates the request and forwards it to the Chat Service
+3. Chat Service checks the Cache for an existing response to the query
+4. If a cache miss, Guardrails validates the input against safety and policy rules
+5. Chat Service queries RAG, which performs a semantic search against the Vector DB to fetch relevant context
+6. Chat Service builds the final prompt (system prompt + retrieved context + conversation history + user message)
+7. Model Router selects the appropriate LLM (self-hosted or external) using the Model Selection Model
+8. The selected LLM generates a response, which is streamed back to the Chat Service
+9. Guardrails validates the LLM output before it is returned
+10. Chat Service streams the response back to the client via the API Gateway
+11. Response is stored in Cache for future reuse
 
 ---
 
 ## Trade-offs & Considerations
 
+- **RAG vs. fine-tuning** — RAG is easier to keep up to date but adds retrieval latency; fine-tuning bakes knowledge into the model but requires retraining cycles
+- **Model routing** — routing to cheaper or self-hosted models reduces cost but may affect response quality for complex queries
+- **Guardrails latency** — running safety checks on both input and output adds round-trip overhead; async or batched checks can mitigate this
+- **Cache hit rate** — caching works well for repetitive queries but has low utility in open-ended conversational settings
 - **Context window limit** — older messages must be truncated or summarized as conversations grow long
 - **Streaming vs. REST** — WebSockets give a better UX for streaming but add connection management complexity
-- **LLM latency** — first-token latency dominates; choose providers with fast inference or self-host smaller models
-- **Cost** — token usage scales with context length; trimming history aggressively reduces cost at the expense of coherence
