@@ -264,6 +264,48 @@ Self-hosted models (e.g. LLaMA 3, Mistral, Falcon, Qwen) run on your own infrast
 - *Self-Hosted Inference* - vLLM, Ollama, TGI (Text Generation Inference by HuggingFace), Triton Inference Server
 - *External LLM Providers* - OpenAI, Anthropic, Google Vertex AI, Cohere, Mistral AI
 
+### LLM Serving - Self-Hosted & External Models
+Once the Model Router has made its decision, the request is forwarded to the selected model for final inference - the step where the actual response is generated. This is the most computationally intensive and latency-dominant part of the entire pipeline.
+
+**Self-Hosted Models:**
+
+Self-hosted models are open-weight models deployed and served on your own infrastructure. They give full control over the model, the hardware, and the data - nothing leaves your environment.
+
+Popular model families:
+- *LLaMA 3 (Meta)* - one of the strongest open-weight model families; available in 8B, 70B, and 405B parameter sizes; well-suited for general conversation, reasoning, and instruction following
+- *Mistral / Mixtral (Mistral AI)* - highly efficient models; Mixtral uses a Mixture-of-Experts (MoE) architecture that delivers strong performance at lower compute cost compared to dense models of equivalent quality
+- *Qwen 2.5 (Alibaba)* - strong multilingual support; competitive on coding and reasoning benchmarks; available in a wide range of sizes
+- *Falcon (TII)* - efficient open-weight models, particularly well-suited for lower-resource deployments
+- *Gemma 2 (Google)* - lightweight, fast models optimised for on-device and edge inference
+
+Serving infrastructure for self-hosted models:
+- *vLLM* - high-throughput inference server with PagedAttention for efficient KV cache management; the de facto standard for production self-hosted LLM serving
+- *TGI (Text Generation Inference)* - HuggingFace's production inference server with streaming, continuous batching, and tensor parallelism support
+- *Ollama* - lightweight local model runner; ideal for development and low-traffic deployments
+- *Triton Inference Server (NVIDIA)* - enterprise-grade serving framework optimised for GPU workloads, supports multi-model and multi-framework deployments
+
+Key hardware considerations:
+- Model size dictates minimum GPU VRAM requirements (e.g. a 70B model in fp16 needs ~140GB VRAM, typically requiring multiple A100s or H100s)
+- Quantisation techniques (GPTQ, AWQ, GGUF) can reduce memory footprint significantly - a 70B model quantised to 4-bit fits in ~35GB VRAM at a modest quality trade-off
+- Tensor parallelism splits a single model across multiple GPUs to serve larger models or improve throughput
+
+**External Models:**
+
+External models are accessed via API and are fully managed by the provider - no infrastructure to operate, but every request is a network call to a third party.
+
+Major providers and their flagship models:
+- *OpenAI* - GPT-4o (fast, multimodal, strong reasoning), o1 / o3 (extended thinking for complex reasoning tasks), GPT-4o mini (cost-efficient for simpler tasks)
+- *Anthropic* - Claude Opus 4 (top-tier reasoning and long-context tasks), Claude Sonnet 4 (best balance of capability and speed), Claude Haiku 3.5 (low latency, cost-efficient)
+- *Google* - Gemini 2.5 Pro (strong reasoning, very large context window), Gemini 2.0 Flash (fast and cost-efficient)
+- *Mistral AI* - Mistral Large (strong multilingual and coding), Mistral Small (efficient, low cost)
+- *Cohere* - Command R+ (optimised for RAG and enterprise retrieval workloads)
+
+Key considerations for external models:
+- **Latency** - time-to-first-token (TTFT) varies widely by provider and model tier; typically ranges from 200ms to 2s+ depending on load
+- **Rate limits** - providers enforce per-minute token and request limits; production systems must implement retry logic and queue management to handle bursts
+- **Cost** - billed per input and output token; costs can scale significantly with context length, especially when RAG payloads or long conversation histories are included in every request
+- **Model versioning** - providers periodically update or retire model versions; the system must handle version pinning and migration gracefully to avoid unexpected behaviour changes
+
 ---
 
 ## Data Flow
